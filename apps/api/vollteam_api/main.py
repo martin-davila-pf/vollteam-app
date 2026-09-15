@@ -1,16 +1,20 @@
 """Vollteam API entrypoint.
 
-Minimal FastAPI application for Phase 1: proves the tooling chain
-(ruff, mypy strict, pytest) against real code before feature work begins.
+Phase 2: auth (opaque sessions), user administration, RBAC enforcement.
+Health endpoint stays minimal; readiness is judged by CI against real Postgres.
 """
 
 from fastapi import FastAPI
+
+from vollteam_api.users_api import router, users_router
 
 app = FastAPI(
     title="Vollteam API",
     version="0.1.0",
     description="Volleyball game scheduling with capacity-limited roster and FIFO waitlist.",
 )
+for _r in (router, users_router):
+    app.include_router(_r)
 
 
 @app.get("/healthz", tags=["ops"])
