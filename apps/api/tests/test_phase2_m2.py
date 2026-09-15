@@ -24,6 +24,8 @@ from vollteam_api.security import hash_password
 
 PWA = "CorrectHorse42!"
 
+pytestmark = pytest.mark.integration
+
 
 def E(name: str) -> str:
     """Unique email per run: reruns never collide with old test data."""
