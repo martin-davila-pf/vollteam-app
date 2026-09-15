@@ -98,7 +98,9 @@ def test_login_failure_generic_and_no_user_enumeration(client: TestClient, db: D
     assert "set-cookie" not in r1.headers and "set-cookie" not in r2.headers
 
 
-def test_short_password_rejected_on_create_promotes_error(client: TestClient, db: DBSession) -> None:
+def test_short_password_rejected_on_create(
+    client: TestClient, db: DBSession
+) -> None:
     admin = make_user(db, "admin")
     headers = login_as(client, admin.email)
     r = client.post(

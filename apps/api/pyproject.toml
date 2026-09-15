@@ -51,6 +51,9 @@ ignore = [
 "tests/**" = ["S101"]
 "alembic/versions/**" = ["E501"]
 
+[tool.setuptools]
+packages = ["vollteam_api"]
+
 [tool.mypy]
 python_version = "3.11"
 strict = true
