@@ -77,5 +77,10 @@ jobs:
       - name: Install project
         run: pip install -e "apps/api[dev]"
 
+      - name: Apply migrations
+        run: alembic upgrade head
+        working-directory: apps/api
+
       - name: Integration tests against real PostgreSQL
         run: pytest -m integration apps/api
+        working-directory: .
