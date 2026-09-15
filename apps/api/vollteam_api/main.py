@@ -6,6 +6,7 @@ Health endpoint stays minimal; readiness is judged by CI against real Postgres.
 
 from fastapi import FastAPI
 
+from vollteam_api.bootstrap import router as bootstrap_router
 from vollteam_api.users_api import router, users_router
 
 app = FastAPI(
@@ -13,7 +14,7 @@ app = FastAPI(
     version="0.1.0",
     description="Volleyball game scheduling with capacity-limited roster and FIFO waitlist.",
 )
-for _r in (router, users_router):
+for _r in (router, users_router, bootstrap_router):
     app.include_router(_r)
 
 

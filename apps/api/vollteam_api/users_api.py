@@ -11,11 +11,14 @@ from __future__ import annotations
 import datetime as dt
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Cookie, Depends, HTTPException, Response, status
+from fastapi import APIRouter, Cookie, Depends, HTTPException, Request, Response, status
 from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session as DBSession
 
+from vollteam_api import ratelimit
+from vollteam_api.audit_helpers import record_audit
+from vollteam_api.csrf import new_csrf_token, set_csrf_cookie, verify_csrf
 from vollteam_api.db import get_db
 from vollteam_api.deps import current_user, require_role
 from vollteam_api.models import User
@@ -77,17 +80,35 @@ def _check_password_strength(pw: str) -> None:
 def login(
     payload: LoginIn,
     response: Response,
+    request: Request,
     db: DBSession = Depends(get_db),
 ) -> dict[str, bool | str]:
+    client_ip = request.client.host if request.client else "unknown"
+    email_key = payload.email.strip().lower()
+
+    if ratelimit.is_rate_limited(client_ip, email_key):
+        raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, "Too many attempts")
+
     user = db.execute(
-        select(User).where(User.email == payload.email.strip().lower())
+        select(User).where(User.email == email_key)
     ).scalar_one_or_none()
 
     password_ok = verify_password(payload.password, user.password_hash if user else None)
     if user is None or not user.is_active or not password_ok:
         # single generic message: never reveals which part failed
+        ratelimit.record_failure(client_ip, email_key)
+        record_audit(
+            None,  # standalone: must survive the rolled-back 401 transaction
+            action="LOGIN_FAILURE",
+            target_type="auth",
+            target_id=email_key,
+            detail={"reason": "invalid_credentials"},
+            ip=client_ip,
+            user_agent=request.headers.get("user-agent"),
+        )
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid credentials")
 
+    ratelimit.reset_failures(client_ip, email_key)
     raw, _session_row = issue_session(db, user.id)
     response.set_cookie(
         key=SESSION_COOKIE,
@@ -98,7 +119,9 @@ def login(
         max_age=int(dt.timedelta(days=30).total_seconds()),
         path="/",
     )
-    return {"ok": True, "role": user.role}
+    csrf = new_csrf_token()
+    set_csrf_cookie(response, csrf)
+    return {"ok": True, "role": user.role, "csrf_token": csrf}
 
 
 @router.post("/auth/logout")
@@ -126,8 +149,10 @@ def whoami(user: User = Depends(current_user)) -> Any:
 @users_router.post("", response_model=UserOut, status_code=201)
 def create_user(
     payload: UserCreateIn,
+    request: Request,
     actor: Annotated[User, Depends(require_role("admin"))],
     db: DBSession = Depends(get_db),
+    _csrf: None = Depends(verify_csrf),  # state-changing ⇒ CSRF gate
 ) -> Any:
     _check_password_strength(payload.password)
     email = payload.email.strip().lower()
@@ -147,6 +172,16 @@ def create_user(
     )
     db.add(user)
     db.flush()
+    record_audit(
+        db,
+        actor=actor,
+        action="CREATE_USER",
+        target_type="user",
+        target_id=user.id,
+        detail={"email": email, "role": user.role},
+        ip=request.client.host if request.client else None,
+        user_agent=request.headers.get("user-agent"),
+    )
     return user
 
 
@@ -163,8 +198,10 @@ def list_users(
 def reset_password(
     user_id: str,
     payload: PasswordResetIn,
+    request: Request,
     actor: Annotated[User, Depends(current_user)],
     db: DBSession = Depends(get_db),
+    _csrf: None = Depends(verify_csrf),  # state-changing ⇒ CSRF gate
 ) -> dict[str, bool]:
     _check_password_strength(payload.new_password)
     self_reset = actor.id == user_id
@@ -180,4 +217,14 @@ def reset_password(
     upgraded = rehash_if_needed(target.password_hash, payload.new_password)
     if upgraded:
         target.password_hash = upgraded
+    record_audit(
+        db,
+        actor=actor,
+        action="RESET_PASSWORD",
+        target_type="user",
+        target_id=target.id,
+        detail={"self_reset": self_reset},
+        ip=request.client.host if request.client else None,
+        user_agent=request.headers.get("user-agent"),
+    )
     return {"ok": True}

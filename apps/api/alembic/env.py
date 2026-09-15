@@ -3,6 +3,7 @@ from logging.config import fileConfig
 
 from alembic import context
 from sqlalchemy.engine import Connection
+from vollteam_api import audit as _audit  # noqa: F401
 from vollteam_api import models as _models  # noqa: F401
 from vollteam_api.db import Base
 

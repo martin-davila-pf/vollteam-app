@@ -10,9 +10,13 @@ from __future__ import annotations
 
 import uuid
 from collections.abc import Iterator
+from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
+
+if True:
+    pass
 from sqlalchemy.orm import Session as DBSession
 from vollteam_api.db import SessionFactory
 from vollteam_api.main import app
@@ -43,10 +47,25 @@ def make_user(db: DBSession, role: str, email: str | None = None) -> User:
     return user
 
 
+def _session_cookie_only(login: Any) -> str:
+    """Return the raw `Cookie: vollteam_session=...` header fragment only.
+
+    _MutableHeaders.get_list is a starlette runtime API not fully typed —
+    mypy sees Any; keeping one narrow helper keeps the 'Any' contained here.
+    """
+    parts = login.headers.get_list("set-cookie")
+    for part in parts:
+        if part.startswith("vollteam_session="):
+            value: str = part.split(";")[0]
+            return value
+    raise AssertionError("no session cookie present")
+
+
 def login_as(client: TestClient, email: str) -> dict[str, str]:
+    """Login persists cookies in the client jar; only the CSRF echo needed."""
     r = client.post("/api/v1/auth/login", json={"email": email, "password": PWA})
     assert r.status_code == 200, r.text
-    return {"Cookie": r.headers["set-cookie"].split(";")[0]}
+    return {"X-CSRF-Token": r.json()["csrf_token"]}
 
 
 @pytest.fixture()
@@ -140,7 +159,10 @@ def test_forged_or_garbage_session_is_401(client: TestClient, db: DBSession) -> 
 
 def test_disabled_user_sessions_die_immediately(client: TestClient, db: DBSession) -> None:
     user = make_user(db, "player")
-    cookie = login_as(client, user.email)["Cookie"]
+    login = client.post(
+        "/api/v1/auth/login", json={"email": user.email, "password": PWA}
+    )
+    cookie = _session_cookie_only(login)
 
     user.is_active = False
     db.commit()  # admin-disabled mid-life
