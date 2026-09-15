@@ -1,0 +1,32 @@
+# Private execution context — never versioned
+prompts/
+
+# Environment / secrets
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+htmlcov/
+.coverage
+dist/
+build/
+
+# Node / frontend
+node_modules/
+coverage/
+.vite/
+
+# Local state / tooling
+*.local
+.DS_Store
+Thumbs.db
+*.log
+state/local/
