@@ -30,3 +30,8 @@ coverage/
 Thumbs.db
 *.log
 state/local/
+
+# Python editable-install metadata
+*.egg-info/
+.eggs/
+
