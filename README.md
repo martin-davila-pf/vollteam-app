@@ -1,32 +1,32 @@
-# 🏐 Vollteam
+# Vollteam
 
-Mobile-first volleyball game management: administrators schedule games, players
-register (with up to 2 guests), overflow goes to a strict FIFO waitlist, and
-cancellations promote the oldest waitlisted registration atomically.
+Volleyball game scheduling web app: administrators create games, players sign
+up with up to 2 guests, and a strict FIFO waitlist promotes the oldest
+registration the moment a spot frees up — atomically, under concurrent load.
+
+FastAPI + PostgreSQL backend, React + TypeScript frontend, opaque server-side
+sessions with RBAC, transactional roster/waitlist correctness tests,
+Docker Compose for local development, CI quality gates (lint, strict typing, tests).
 
 ## Status
 
-Phase 1 in progress — repository bootstrap. No application code yet.
+Work in progress. Current: repository bootstrap, backend skeleton with
+healthcheck, tooling and CI pipeline.
 
-Planned stack: Python/FastAPI API, PostgreSQL, React + TypeScript + Vite +
-Tailwind frontend, server-side opaque sessions with RBAC.
+Architecture decisions land in [docs/](docs/).
 
 ## Repository layout
 
-- `apps/api` — backend API (planned)
-- `apps/web` — frontend (planned)
-- `tests` — integration and E2E tests (planned)
-- `docs` — public documentation (planned, English)
+- `apps/api` — backend API (FastAPI)
+- `apps/web` — frontend (React + TypeScript, planned)
+- `tests` — integration and E2E tests
+- `docs` — architecture decisions and public documentation
 
-## Development (planned)
+## Local development
 
-Docker Compose based local environment will be added in Phase 1 milestones.
-
-## License
-
-All rights reserved. Private project.
-
-## Security
-
-Private execution context lives under `prompts/` and is never versioned or
-published. Report issues directly to the maintainer.
+```bash
+cp .env.example .env          # set POSTGRES_PASSWORD
+docker compose up -d db       # PostgreSQL 16
+pip install -e "apps/api[dev]"
+cd apps/api && pytest && ruff check . && mypy .
+```
